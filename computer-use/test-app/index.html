@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>@Mention Test Component</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            padding: 40px;
+            background: #f5f5f5;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .description {
+            margin-bottom: 30px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .editor-wrapper {
+            position: relative;
+        }
+
+        #editor {
+            width: 100%;
+            min-height: 150px;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            resize: vertical;
+            font-family: inherit;
+            line-height: 1.5;
+        }
+
+        #editor:focus {
+            outline: none;
+            border-color: #4A90E2;
+        }
+
+        .mention {
+            background: #E3F2FD;
+            color: #1976D2;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-weight: 500;
+        }
+
+        .autocomplete {
+            position: absolute;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            max-height: 200px;
+            overflow-y: auto;
+            min-width: 200px;
+            z-index: 1000;
+            display: none;
+        }
+
+        .autocomplete-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .autocomplete-item:hover,
+        .autocomplete-item.selected {
+            background: #f0f0f0;
+        }
+
+        .autocomplete-item.selected {
+            background: #E3F2FD;
+        }
+
+        .test-info {
+            margin-top: 30px;
+            padding: 15px;
+            background: #FFF3E0;
+            border-left: 4px solid #FF9800;
+            border-radius: 4px;
+        }
+
+        .test-info h3 {
+            margin-bottom: 10px;
+            color: #E65100;
+        }
+
+        .test-info ul {
+            margin-left: 20px;
+        }
+
+        .test-info li {
+            margin: 5px 0;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>@Mention Component Test</h1>
+        <p class="description">
+            Type "@" to trigger autocomplete. This component has intentional bugs for QA testing.
+        </p>
+
+        <div class="editor-wrapper">
+            <textarea
+                id="editor"
+                placeholder="Type your message here. Use @ to mention someone..."
+            ></textarea>
+            <div id="autocomplete" class="autocomplete"></div>
+        </div>
+
+        <div class="test-info">
+            <h3>⚠️ Known Issues (for QA testing):</h3>
+            <ul>
+                <li><strong>Bug 1:</strong> Autocomplete appears in wrong position after multiple mentions + backspace</li>
+                <li><strong>Bug 2:</strong> Sometimes autocomplete doesn't close after selection</li>
+                <li><strong>Bug 3:</strong> Pressing Escape doesn't always close autocomplete</li>
+            </ul>
+            <p style="margin-top: 15px; font-size: 13px; color: #999;">
+                <em>Use Claude Computer Use to automatically test and find these bugs!</em>
+            </p>
+        </div>
+    </div>
+
+    <script>
+        const editor = document.getElementById('editor');
+        const autocomplete = document.getElementById('autocomplete');
+
+        const mentions = [
+            '@john', '@jane', '@alice', '@bob', '@charlie',
+            '@david', '@emma', '@frank', '@grace', '@henry',
+            '@isabel', '@jack', '@kate', '@liam', '@mary'
+        ];
+
+        let selectedIndex = -1;
+        let isAutocompleteOpen = false;
+        let mentionStartPos = -1;
+
+        function showAutocomplete(x, y, filter = '') {
+            const filtered = mentions.filter(m =>
+                m.toLowerCase().includes(filter.toLowerCase())
+            );
+
+            if (filtered.length === 0) {
+                hideAutocomplete();
+                return;
+            }
+
+            autocomplete.innerHTML = filtered
+                .map((item, index) => `
+                    <div class="autocomplete-item" data-index="${index}">${item}</div>
+                `)
+                .join('');
+
+            // BUG: Position calculation is wrong in some cases
+            // This is intentional for the QA test
+            autocomplete.style.left = x + 'px';
+            autocomplete.style.top = y + 'px';
+            autocomplete.style.display = 'block';
+
+            isAutocompleteOpen = true;
+            selectedIndex = 0;
+            updateSelection();
+
+            // Add click handlers
+            autocomplete.querySelectorAll('.autocomplete-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    insertMention(item.textContent);
+                });
+            });
+        }
+
+        function hideAutocomplete() {
+            autocomplete.style.display = 'none';
+            isAutocompleteOpen = false;
+            selectedIndex = -1;
+            mentionStartPos = -1;
+        }
+
+        function updateSelection() {
+            const items = autocomplete.querySelectorAll('.autocomplete-item');
+            items.forEach((item, index) => {
+                item.classList.toggle('selected', index === selectedIndex);
+            });
+        }
+
+        function insertMention(mention) {
+            const start = editor.selectionStart;
+            const end = editor.selectionEnd;
+            const text = editor.value;
+
+            // Find where the @ symbol started
+            let atPos = start - 1;
+            while (atPos >= 0 && text[atPos] !== '@') {
+                atPos--;
+            }
+
+            const before = text.substring(0, atPos);
+            const after = text.substring(end);
+
+            editor.value = before + mention + ' ' + after;
+            editor.selectionStart = editor.selectionEnd = before.length + mention.length + 1;
+
+            // BUG: Sometimes doesn't hide autocomplete properly
+            // This causes the second bug mentioned
+            if (Math.random() > 0.3) { // 70% chance to hide properly
+                hideAutocomplete();
+            }
+
+            editor.focus();
+        }
+
+        function getCaretCoordinates() {
+            const div = document.createElement('div');
+            const style = window.getComputedStyle(editor);
+
+            div.style.position = 'absolute';
+            div.style.visibility = 'hidden';
+            div.style.whiteSpace = 'pre-wrap';
+            div.style.wordWrap = 'break-word';
+            div.style.font = style.font;
+            div.style.padding = style.padding;
+            div.style.border = style.border;
+            div.style.width = editor.offsetWidth + 'px';
+
+            const text = editor.value.substring(0, editor.selectionStart);
+            div.textContent = text;
+
+            const span = document.createElement('span');
+            span.textContent = '|';
+            div.appendChild(span);
+
+            document.body.appendChild(div);
+
+            const rect = editor.getBoundingClientRect();
+            const spanRect = span.getBoundingClientRect();
+
+            document.body.removeChild(div);
+
+            return {
+                x: spanRect.left - rect.left,
+                y: spanRect.bottom - rect.top
+            };
+        }
+
+        editor.addEventListener('input', (e) => {
+            const cursorPos = editor.selectionStart;
+            const text = editor.value;
+            const char = text[cursorPos - 1];
+
+            if (char === '@') {
+                mentionStartPos = cursorPos - 1;
+                const coords = getCaretCoordinates();
+                showAutocomplete(coords.x, coords.y);
+            } else if (isAutocompleteOpen && mentionStartPos >= 0) {
+                const query = text.substring(mentionStartPos + 1, cursorPos);
+                const coords = getCaretCoordinates();
+                showAutocomplete(coords.x, coords.y, query);
+            }
+        });
+
+        editor.addEventListener('keydown', (e) => {
+            if (!isAutocompleteOpen) return;
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                const items = autocomplete.querySelectorAll('.autocomplete-item');
+                selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+                updateSelection();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                selectedIndex = Math.max(selectedIndex - 1, 0);
+                updateSelection();
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                const items = autocomplete.querySelectorAll('.autocomplete-item');
+                if (items[selectedIndex]) {
+                    insertMention(items[selectedIndex].textContent);
+                }
+            } else if (e.key === 'Escape') {
+                // BUG: Doesn't always close
+                // This is bug #3
+                if (Math.random() > 0.4) { // 60% chance to close properly
+                    hideAutocomplete();
+                }
+            } else if (e.key === 'Backspace') {
+                // BUG: Position gets messed up after backspace with multiple mentions
+                // This is bug #1 - the main bug from the lesson
+                const text = editor.value;
+                const cursorPos = editor.selectionStart;
+
+                // Count mentions before cursor
+                const beforeCursor = text.substring(0, cursorPos);
+                const mentionCount = (beforeCursor.match(/@\w+/g) || []).length;
+
+                if (mentionCount >= 2) {
+                    // Intentionally break the positioning
+                    setTimeout(() => {
+                        if (isAutocompleteOpen) {
+                            // Show in wrong position (top-left)
+                            autocomplete.style.left = '10px';
+                            autocomplete.style.top = '10px';
+                        }
+                    }, 50);
+                }
+            }
+        });
+
+        // Click outside to close
+        document.addEventListener('click', (e) => {
+            if (!autocomplete.contains(e.target) && e.target !== editor) {
+                hideAutocomplete();
+            }
+        });
+    </script>
+</body>
+</html>
