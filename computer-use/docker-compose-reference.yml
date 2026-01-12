@@ -1,0 +1,33 @@
+version: '3.8'
+
+# Anthropic Computer Use Reference Implementation
+# Official demo with web UI from the lesson
+
+services:
+  computer-use-demo:
+    image: ghcr.io/anthropics/anthropic-quickstarts:computer-use-demo-latest
+    container_name: computer-use-demo
+
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - WIDTH=1920
+      - HEIGHT=1080
+
+    ports:
+      - "8080:8080"   # Streamlit Web UI (MAIN INTERFACE)
+      - "8501:8501"   # Streamlit server
+      - "6080:6080"   # noVNC (browser-based VNC)
+      - "5900:5900"   # VNC server
+
+    volumes:
+      - ~/.anthropic:/home/computeruse/.anthropic
+
+    stdin_open: true
+    tty: true
+
+    networks:
+      - computer-use-network
+
+networks:
+  computer-use-network:
+    driver: bridge

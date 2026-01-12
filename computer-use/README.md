@@ -2,7 +2,36 @@
 
 Automated QA testing and browser automation with Claude!
 
-## Quick Start
+## 🎯 Two Ways to Use Computer Use
+
+### Option 1: Reference UI with Web Interface (RECOMMENDED - From the Lesson!)
+
+**Get the EXACT interface from the lesson** - chat with Claude on the left, watch it control a virtual desktop on the right!
+
+```bash
+# Windows
+set ANTHROPIC_API_KEY=your-key-here
+launch-reference-ui.bat
+
+# Mac/Linux
+export ANTHROPIC_API_KEY='your-key-here'
+./launch-reference-ui.sh
+
+# Then open: http://localhost:8080
+```
+
+**What you get:**
+- ✅ **Split-screen web UI** (chat + desktop view)
+- ✅ **Watch Claude work in real-time**
+- ✅ **Safe Docker isolation**
+- ✅ **Official Anthropic implementation**
+- ✅ **Exact demo from lesson**
+
+See [`REFERENCE_UI_GUIDE.md`](REFERENCE_UI_GUIDE.md) for complete guide!
+
+### Option 2: Custom Python Client (For Scripting)
+
+**For programmatic automation and custom integrations:**
 
 ```bash
 # Set API key
@@ -16,9 +45,16 @@ cd scripts
 python3 qa_test_mention_component.py
 ```
 
+**What you get:**
+- ✅ **Python API** for scripting
+- ✅ **Direct computer control**
+- ✅ **CI/CD integration**
+- ✅ **Custom workflows**
+
 ## What's Included
 
-- **Computer Use Client** - Main client for Claude Computer Use API
+- **Reference UI** ⭐ NEW! - Official web interface from lesson
+- **Computer Use Client** - Python client for Claude Computer Use API
 - **Test Application** - @Mention component with intentional bugs
 - **QA Automation** - Automated testing example from the lesson
 - **Docker Setup** - Isolated testing environment
