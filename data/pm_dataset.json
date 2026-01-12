@@ -1,0 +1,10 @@
+[
+  {
+    "task": "Write a user story for the feature to allow users to schedule meetings from within the OneSuite application.",
+    "criteria": "The user story should follow the standard format (As a [user], I want to [action], so that [value]) and include clear acceptance criteria that outlines the desired functionality and edge cases."
+  },
+  {
+    "task": "Critique the product roadmap for the OneSuite platform for the next 6 months.",
+    "criteria": "The critique should assess the roadmap in terms of alignment with user needs, business objectives, and technical feasibility. It should identify any gaps, overlaps, or areas that require further prioritization or clarification."
+  }
+]

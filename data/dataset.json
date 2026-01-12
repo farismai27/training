@@ -1,0 +1,31 @@
+[
+  {
+    "question": "Write a user story for a new feature that allows users to save their favorite products on the e-commerce platform. Include acceptance criteria.",
+    "expected_keywords": [
+      "user story",
+      "acceptance criteria",
+      "favorite products",
+      "e-commerce",
+      "save"
+    ]
+  },
+  {
+    "question": "Critique the product roadmap for the upcoming quarter. Identify any missing key initiatives or areas of focus that should be considered.",
+    "expected_keywords": [
+      "product roadmap",
+      "critique",
+      "missing initiatives",
+      "areas of focus"
+    ]
+  },
+  {
+    "question": "Identify any missing requirements in the product specification for a new mobile app feature that allows users to share content on social media. Suggest additional requirements that should be included.",
+    "expected_keywords": [
+      "product specification",
+      "missing requirements",
+      "mobile app",
+      "share content",
+      "social media"
+    ]
+  }
+]
