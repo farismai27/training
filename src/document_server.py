@@ -10,6 +10,7 @@ import os
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Resource, ListResourcesResult, TextContent, Tool, GetPromptResult, PromptMessage
+from document_utils import document_path_to_markdown
 
 # Load OneSuite User Stories from file
 def load_user_stories():
@@ -69,6 +70,17 @@ async def list_tools() -> list[Tool]:
                 },
                 "required": ["name", "content"]
             }
+        ),
+        Tool(
+            name="document_path_to_markdown",
+            description="Read a PDF or Word document from file system and convert to Markdown",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "file_path": {"type": "string", "description": "Path to the PDF (.pdf) or Word (.docx) document"}
+                },
+                "required": ["file_path"]
+            }
         )
     ]
 
@@ -91,16 +103,16 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     elif name == "update_document":
         doc_name = arguments.get("name", "")
         content = arguments.get("content", "")
-        
+
         if not doc_name or not content:
             return [TextContent(
                 type="text",
                 text=json.dumps({"error": "Both 'name' and 'content' required"})
             )]
-        
+
         is_new = doc_name not in DOCUMENTS
         DOCUMENTS[doc_name] = content
-        
+
         return [TextContent(
             type="text",
             text=json.dumps({
@@ -109,7 +121,42 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 "name": doc_name
             })
         )]
-    
+
+    elif name == "document_path_to_markdown":
+        file_path = arguments.get("file_path", "")
+
+        if not file_path:
+            return [TextContent(
+                type="text",
+                text=json.dumps({"error": "'file_path' is required"})
+            )]
+
+        try:
+            markdown_content = document_path_to_markdown(file_path)
+            return [TextContent(
+                type="text",
+                text=json.dumps({
+                    "success": True,
+                    "file_path": file_path,
+                    "markdown": markdown_content
+                })
+            )]
+        except FileNotFoundError as e:
+            return [TextContent(
+                type="text",
+                text=json.dumps({"error": f"File not found: {str(e)}"})
+            )]
+        except ValueError as e:
+            return [TextContent(
+                type="text",
+                text=json.dumps({"error": f"Unsupported file type: {str(e)}"})
+            )]
+        except Exception as e:
+            return [TextContent(
+                type="text",
+                text=json.dumps({"error": f"Conversion failed: {str(e)}"})
+            )]
+
     return [TextContent(type="text", text=json.dumps({"error": f"Unknown tool: {name}"}))]
 
 # ============================================================================
