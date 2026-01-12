@@ -11,6 +11,10 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Resource, ListResourcesResult, TextContent, Tool, GetPromptResult, PromptMessage
 from document_utils import document_path_to_markdown
+from logging_config import setup_logging, log_error
+
+# Set up logging
+logger = setup_logging("document_server", log_file="logs/document_server.log")
 
 # Load OneSuite User Stories from file
 def load_user_stories():
@@ -126,13 +130,16 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         file_path = arguments.get("file_path", "")
 
         if not file_path:
+            logger.warning("document_path_to_markdown called without file_path")
             return [TextContent(
                 type="text",
                 text=json.dumps({"error": "'file_path' is required"})
             )]
 
         try:
+            logger.info(f"Converting document to markdown: {file_path}")
             markdown_content = document_path_to_markdown(file_path)
+            logger.info(f"Successfully converted {file_path} to markdown ({len(markdown_content)} chars)")
             return [TextContent(
                 type="text",
                 text=json.dumps({
@@ -142,16 +149,19 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 })
             )]
         except FileNotFoundError as e:
+            log_error(logger, e, {'file_path': file_path, 'operation': 'document_conversion'})
             return [TextContent(
                 type="text",
                 text=json.dumps({"error": f"File not found: {str(e)}"})
             )]
         except ValueError as e:
+            log_error(logger, e, {'file_path': file_path, 'operation': 'document_conversion'})
             return [TextContent(
                 type="text",
                 text=json.dumps({"error": f"Unsupported file type: {str(e)}"})
             )]
         except Exception as e:
+            log_error(logger, e, {'file_path': file_path, 'operation': 'document_conversion'})
             return [TextContent(
                 type="text",
                 text=json.dumps({"error": f"Conversion failed: {str(e)}"})
@@ -277,12 +287,19 @@ Please proceed with these steps and show me the reformatted markdown content."""
 
 async def main():
     """Run the MCP server via stdio."""
-    async with stdio_server() as (read_stream, write_stream):
-        await server.run(
-            read_stream,
-            write_stream,
-            server.create_initialization_options()
-        )
+    logger.info("Starting MCP Document Server")
+    logger.info(f"Loaded {len(DOCUMENTS)} documents")
+
+    try:
+        async with stdio_server() as (read_stream, write_stream):
+            await server.run(
+                read_stream,
+                write_stream,
+                server.create_initialization_options()
+            )
+    except Exception as e:
+        log_error(logger, e, {'context': 'server_startup'})
+        raise
 
 if __name__ == "__main__":
     asyncio.run(main())

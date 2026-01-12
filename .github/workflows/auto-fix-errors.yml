@@ -1,0 +1,161 @@
+name: Auto-Fix Production Errors
+
+on:
+  # Run daily at 6 AM UTC
+  schedule:
+    - cron: '0 6 * * *'
+
+  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      hours_back:
+        description: 'Hours of logs to analyze'
+        required: false
+        default: '24'
+      max_errors:
+        description: 'Maximum errors to fix'
+        required: false
+        default: '5'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-fix-errors:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install Claude Code CLI
+        run: |
+          # Install Claude Code (adjust based on actual installation method)
+          curl -fsSL https://cli.anthropic.com/install.sh | sh
+          echo "$HOME/.claude/bin" >> $GITHUB_PATH
+        continue-on-error: true
+
+      - name: Create logs directory
+        run: mkdir -p logs
+
+      - name: Fetch production logs
+        run: |
+          # This is a placeholder - adapt to your logging system
+          # Examples:
+          # - AWS CloudWatch: aws logs tail /aws/lambda/my-function --since 24h
+          # - Heroku: heroku logs --app my-app --num 1000
+          # - Custom API: curl https://api.yourapp.com/logs
+
+          # For now, we'll check for local log files and test failures
+          echo "Fetching recent errors..."
+
+          # Run tests to capture any failures
+          python -m pytest tests/ -v --tb=short 2>&1 | tee logs/test_errors.log || true
+
+          # Check for Python errors in recent commits
+          git log --since="24 hours ago" --all --source --full-history \
+            | grep -i "error\|exception\|failed\|traceback" > logs/git_errors.log || true
+
+          # Scan source code for TODO/FIXME markers
+          grep -r "TODO\|FIXME\|BUG\|HACK" src/ tests/ --line-number > logs/code_issues.log || true
+
+          echo "Logs collected in logs/ directory"
+        continue-on-error: true
+
+      - name: Analyze and fix errors with Claude Code
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          HOURS_BACK: ${{ github.event.inputs.hours_back || '24' }}
+          MAX_ERRORS: ${{ github.event.inputs.max_errors || '5' }}
+        run: |
+          python scripts/auto_fix_errors.py
+        continue-on-error: true
+
+      - name: Check for changes
+        id: check_changes
+        run: |
+          if [[ -n $(git status -s) ]]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "Changes detected!"
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "No changes made."
+          fi
+
+      - name: Create Pull Request
+        if: steps.check_changes.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "🤖 Auto-fix production errors"
+          branch: auto-fix/errors-${{ github.run_number }}
+          delete-branch: true
+          title: "🤖 Auto-fix: Production Errors (${{ github.run_number }})"
+          body: |
+            ## 🤖 Automated Error Fixes
+
+            This PR contains automatic fixes for errors detected in production.
+
+            **Analysis Period:** Last ${{ github.event.inputs.hours_back || '24' }} hours
+            **Run:** #${{ github.run_number }}
+            **Triggered:** ${{ github.event_name }}
+
+            ### Changes Made
+
+            Claude Code analyzed production logs and applied fixes for detected errors.
+
+            ### Review Checklist
+
+            - [ ] Review the error analysis in the workflow logs
+            - [ ] Verify the fixes are correct
+            - [ ] Check that tests pass
+            - [ ] Ensure no breaking changes were introduced
+
+            ### Logs
+
+            See the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for detailed logs.
+
+            ---
+
+            *This PR was automatically created by the Auto-Fix Production Errors workflow.*
+            *If this fix is incorrect, please close this PR and investigate manually.*
+          labels: |
+            automated
+            bug-fix
+            needs-review
+
+      - name: Upload logs as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: error-logs-${{ github.run_number }}
+          path: logs/
+          retention-days: 7
+
+      - name: Report status
+        if: always()
+        run: |
+          echo "### Auto-Fix Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Run Number:** ${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Changes Made:** ${{ steps.check_changes.outputs.has_changes }}" >> $GITHUB_STEP_SUMMARY
+
+          if [[ -f logs/summary.txt ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Errors Fixed" >> $GITHUB_STEP_SUMMARY
+            cat logs/summary.txt >> $GITHUB_STEP_SUMMARY
+          fi
