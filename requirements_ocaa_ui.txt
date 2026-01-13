@@ -1,0 +1,17 @@
+# OCAA Web UI Requirements
+# Install with: pip install -r requirements_ocaa_ui.txt
+
+# Core dependencies
+anthropic>=0.18.0
+streamlit>=1.32.0
+
+# Computer Use (optional but recommended for QA testing)
+pillow>=10.0.0
+pyautogui>=0.9.54
+
+# Document processing (optional)
+pdfplumber>=0.10.0
+python-docx>=1.1.0
+
+# Additional utilities
+python-dotenv>=1.0.0
