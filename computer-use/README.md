@@ -2,7 +2,7 @@
 
 Automated QA testing and browser automation with Claude!
 
-## 🎯 Two Ways to Use Computer Use
+## 🎯 Three Ways to Use Computer Use
 
 ### Option 1: Reference UI with Web Interface (RECOMMENDED - From the Lesson!)
 
@@ -51,12 +51,47 @@ python3 qa_test_mention_component.py
 - ✅ **CI/CD integration**
 - ✅ **Custom workflows**
 
+### Option 3: Unified Multi-Purpose Agent (NEW! ⭐)
+
+**All capabilities combined into ONE comprehensive agent:**
+
+```bash
+# Interactive mode (recommended)
+export ANTHROPIC_API_KEY='your-key-here'
+python run-unified-agent.py
+
+# Command-line mode
+python scripts/unified_agent.py qa_test --url http://localhost:8000
+python scripts/unified_agent.py monitor_errors --max-errors 5
+python scripts/unified_agent.py convert_document --file doc.pdf
+```
+
+**What you get:**
+- 🧪 **QA Testing** - Automated UI/UX testing with Computer Use
+- 🐛 **Error Monitoring** - Analyze logs and generate fixes
+- 📄 **Document Conversion** - PDF/DOCX to Markdown
+- 📊 **Report Generation** - Comprehensive system reports
+- 🎯 **Full Automation** - Run all tasks in sequence
+
+**Interactive Menu:**
+- Select tasks from user-friendly menu
+- Pre-configured workflows
+- Real-time progress tracking
+- All reports saved to `results/` directory
+
+See [`UNIFIED_AGENT_GUIDE.md`](UNIFIED_AGENT_GUIDE.md) for complete guide!
+
+---
+
 ## What's Included
 
-- **Reference UI** ⭐ NEW! - Official web interface from lesson
+- **Unified Agent** ⭐ NEW! - All-in-one multi-purpose agent
+- **Reference UI** - Official web interface from lesson
 - **Computer Use Client** - Python client for Claude Computer Use API
 - **Test Application** - @Mention component with intentional bugs
 - **QA Automation** - Automated testing example from the lesson
+- **Error Monitoring** - Production error analysis and fixes
+- **Document Conversion** - PDF/DOCX to Markdown converter
 - **Docker Setup** - Isolated testing environment
 
 ## Documentation
