@@ -1004,6 +1004,112 @@ def evaluator_optimizer_workflow(task, producer_prompt, grader_prompt, max_itera
     return {'success': False, 'output': output, 'iterations': max_iterations}
 
 
+def parallelization_workflow(task, subtasks, aggregation_prompt=None):
+    """
+    Parallelization workflow pattern from the lesson.
+
+    1. Split task into parallel subtasks
+    2. Execute all subtasks simultaneously
+    3. Aggregate results into final output
+
+    Args:
+        task: Overall task description
+        subtasks: List of subtask prompts to run in parallel
+        aggregation_prompt: Optional custom aggregation prompt
+
+    Returns:
+        Dict with individual results and final aggregated output
+    """
+    print("\n" + "="*70)
+    print("🔀 PARALLELIZATION WORKFLOW")
+    print("="*70)
+    print(f"Task: {task}")
+    print(f"Subtasks: {len(subtasks)}")
+    print()
+
+    # STEP 1: RUN SUBTASKS IN PARALLEL
+    print("📊 Step 1: Running parallel analyses...")
+
+    subtask_results = []
+
+    # Use ThreadPoolExecutor for parallel execution
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=min(len(subtasks), 5)) as executor:
+        # Submit all subtasks
+        futures = []
+        for i, subtask_prompt in enumerate(subtasks, 1):
+            print(f"   Submitting subtask {i}...")
+            future = executor.submit(
+                lambda prompt: client.messages.create(
+                    model=model,
+                    max_tokens=1000,
+                    messages=[{"role": "user", "content": prompt}]
+                ).content[0].text,
+                subtask_prompt
+            )
+            futures.append((i, subtask_prompt, future))
+
+        # Collect results as they complete
+        for i, subtask_prompt, future in futures:
+            try:
+                result = future.result(timeout=30)
+                subtask_results.append({
+                    'subtask_num': i,
+                    'prompt': subtask_prompt[:80] + "..." if len(subtask_prompt) > 80 else subtask_prompt,
+                    'result': result
+                })
+                print(f"   ✅ Subtask {i} complete ({len(result)} chars)")
+            except Exception as e:
+                print(f"   ❌ Subtask {i} failed: {e}")
+                subtask_results.append({
+                    'subtask_num': i,
+                    'prompt': subtask_prompt[:80] + "...",
+                    'result': f"ERROR: {str(e)}"
+                })
+
+    # STEP 2: AGGREGATE RESULTS
+    print(f"\n🎯 Step 2: Aggregating {len(subtask_results)} results...")
+
+    # Build aggregation prompt
+    if not aggregation_prompt:
+        aggregation_prompt = f"""Task: {task}
+
+I ran multiple parallel analyses. Please review all results and provide a comprehensive final recommendation.
+
+"""
+
+    # Add all subtask results
+    for result in subtask_results:
+        aggregation_prompt += f"\n**Analysis {result['subtask_num']}:**\n{result['result']}\n"
+
+    aggregation_prompt += "\n\nBased on all analyses above, provide:\n1. Overall synthesis\n2. Final recommendation\n3. Key insights from each analysis"
+
+    # Get aggregated result
+    print("   Calling Claude for aggregation...")
+    aggregation_response = client.messages.create(
+        model=model,
+        max_tokens=2000,
+        messages=[{"role": "user", "content": aggregation_prompt}]
+    )
+
+    final_output = aggregation_response.content[0].text
+
+    print(f"   ✅ Aggregation complete ({len(final_output)} chars)")
+
+    print("\n" + "="*70)
+    print("✅ PARALLELIZATION WORKFLOW COMPLETE")
+    print("="*70)
+
+    return {
+        'success': True,
+        'task': task,
+        'num_subtasks': len(subtasks),
+        'subtask_results': subtask_results,
+        'final_output': final_output
+    }
+
+
 def execute_tool(tool_name, tool_input):
     """Execute a tool and return JSON-formatted result.
     
@@ -3579,6 +3685,7 @@ def main():
         print("  '/test-mention' - Test @mention component")
         print("  '/monitor-errors' - Analyze production logs")
         print("  '/workflow-demo' - Evaluator-Optimizer demo")
+        print("  '/parallel-analysis' - Parallelization workflow demo")
         print("  '/full-automation' - Run all capabilities")
         print(f"\n  Computer Use: {'✅' if COMPUTER_USE_AVAILABLE else '❌'}")
 
@@ -3966,6 +4073,54 @@ Respond with:
                     print(f"\nQA Tests: {'✅' if results.get('qa', {}).get('success') else '❌'}")
                     print(f"Error Monitoring: ✅ ({results.get('errors', {}).get('errors_found', 0)} errors)")
                     print(f"Workflow Demo: {'✅' if results.get('workflow', {}).get('success') else '❌'}")
+                continue
+
+            if user_input.strip().lower() == "/parallel-analysis":
+                print("\n🔀 Parallelization Workflow Demo")
+                print("   Analyzing OneSuite feature across all channels in parallel...\n")
+
+                # Example: Multi-channel analysis
+                task = "Analyze implementing advanced search filtering in OneSuite"
+
+                subtasks = [
+                    "Analyze implementing advanced search filtering specifically for the SEARCH channel. Consider: query complexity, result relevance, performance impact. Rate feasibility 1-10 and provide justification.",
+
+                    "Analyze implementing advanced search filtering specifically for the SOCIAL channel. Consider: engagement metrics, audience targeting, content discovery. Rate feasibility 1-10 and provide justification.",
+
+                    "Analyze implementing advanced search filtering specifically for the PROGRAMMATIC channel. Consider: inventory selection, bid optimization, targeting precision. Rate feasibility 1-10 and provide justification.",
+
+                    "Analyze implementing advanced search filtering specifically for the COMMERCE channel. Consider: product discovery, price filtering, availability checks. Rate feasibility 1-10 and provide justification."
+                ]
+
+                aggregation_prompt = """Based on these channel-specific analyses, provide:
+1. Overall recommendation for implementing search filtering
+2. Which channels should prioritize this feature
+3. Cross-channel consistency requirements
+4. Implementation timeline and dependencies"""
+
+                try:
+                    result = parallelization_workflow(task, subtasks, aggregation_prompt)
+
+                    if result['success']:
+                        print(f"\n✅ Parallel Analysis Complete!")
+                        print(f"   Analyzed {result['num_subtasks']} channels simultaneously")
+                        print(f"\n{'='*70}")
+                        print("FINAL RECOMMENDATION:")
+                        print(f"{'='*70}")
+                        print(result['final_output'])
+
+                        # Show individual analyses
+                        print(f"\n{'='*70}")
+                        print("INDIVIDUAL CHANNEL ANALYSES:")
+                        print(f"{'='*70}")
+                        for analysis in result['subtask_results']:
+                            print(f"\n**Analysis {analysis['subtask_num']}:**")
+                            print(analysis['result'][:200] + "...")
+                    else:
+                        print("\n⚠️ Parallel analysis failed")
+                except Exception as e:
+                    print(f"\n❌ Error: {e}")
+
                 continue
 
             # Add user message to history
