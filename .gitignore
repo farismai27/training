@@ -42,8 +42,12 @@ Thumbs.db
 
 # Logs
 *.log
+logs/
 
 # Test output
 test_output/
 *.txt
 !requirements.txt
+
+# Git WorkTrees for parallel development
+trees/

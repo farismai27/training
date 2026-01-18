@@ -3,3 +3,6 @@ python-dotenv
 anthropic
 requests
 mcp
+pdfplumber
+python-docx
+pytest

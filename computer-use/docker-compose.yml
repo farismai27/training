@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  computer-use:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: claude-computer-use
+    ports:
+      - "6080:6080"  # noVNC web interface
+      - "5900:5900"  # VNC
+      - "8000:8000"  # Test app server
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - DISPLAY=:99
+      - RESOLUTION=1920x1080x24
+    volumes:
+      - ./scripts:/app/scripts
+      - ./test-app:/app/test-app
+      - ./results:/app/results
+    networks:
+      - computer-use-network
+    shm_size: 2gb  # Increase shared memory for Chrome
+
+networks:
+  computer-use-network:
+    driver: bridge
