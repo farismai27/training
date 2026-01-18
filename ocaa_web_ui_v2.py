@@ -81,7 +81,7 @@ st.markdown("""
 <style>
     /* Main container */
     .main {
-        background: #f8fafc;
+        background: #ffffff;
     }
 
     /* Header */
@@ -105,6 +105,39 @@ st.markdown("""
         color: #e0e7ff;
         margin: 0.5rem 0 0 0;
         font-size: 1.1rem;
+    }
+
+    /* Chat message styling - ensure visible text */
+    [data-testid="stChatMessageContent"] {
+        background-color: #ffffff !important;
+        color: #1f2937 !important;
+    }
+
+    [data-testid="stChatMessageContent"] p,
+    [data-testid="stChatMessageContent"] div,
+    [data-testid="stChatMessageContent"] span {
+        color: #1f2937 !important;
+    }
+
+    /* User messages - light blue background */
+    [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) [data-testid="stChatMessageContent"] {
+        background-color: #eff6ff !important;
+        border-left: 4px solid #3b82f6;
+        padding: 1rem;
+        border-radius: 8px;
+    }
+
+    /* Assistant messages - light green background */
+    [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) [data-testid="stChatMessageContent"] {
+        background-color: #f0fdf4 !important;
+        border-left: 4px solid #10b981;
+        padding: 1rem;
+        border-radius: 8px;
+    }
+
+    /* Ensure all text in messages is dark */
+    .stMarkdown, .stMarkdown p, .stMarkdown div {
+        color: #1f2937 !important;
     }
 
     /* Status badges */
@@ -154,6 +187,7 @@ st.markdown("""
         border-radius: 8px;
         font-family: 'Monaco', 'Courier New', monospace;
         font-size: 0.9rem;
+        color: #1f2937;
     }
 
     .tool-call-header {
@@ -168,6 +202,7 @@ st.markdown("""
         padding: 1rem;
         margin: 0.5rem 0;
         border-radius: 8px;
+        color: #1f2937;
     }
 
     /* Artifacts */
