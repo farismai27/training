@@ -358,18 +358,10 @@ with st.sidebar:
 # Main chat area
 st.header("💬 Chat with OCAA")
 
-# Display messages
+# Display messages using Streamlit's native chat components
 for message in st.session_state.messages:
-    role_class = "user-message" if message["role"] == "user" else "assistant-message"
-    role_icon = "👤" if message["role"] == "user" else "🤖"
-    role_name = "You" if message["role"] == "user" else "OCAA"
-
-    st.markdown(f"""
-    <div class="chat-message {role_class}">
-        <strong>{role_icon} {role_name}:</strong><br>
-        {message["content"].replace(chr(10), '<br>')}
-    </div>
-    """, unsafe_allow_html=True)
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
 
 # Handle quick actions
 if 'quick_action' in st.session_state:
