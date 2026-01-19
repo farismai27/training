@@ -319,7 +319,7 @@ st.set_page_config(
     page_title="OneSuite PM Hero - Alignment & Progress Tracking",
     page_icon="🦸",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # Enhanced CSS with hamburger menu
