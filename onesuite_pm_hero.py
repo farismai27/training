@@ -720,6 +720,95 @@ with st.sidebar:
         with col2:
             st.metric("Output", f"{st.session_state.total_tokens['output']:,}")
 
+# Custom hamburger button (always visible)
+st.markdown("""
+<button id="customHamburger" onclick="toggleSidebar()" style="
+    position: fixed;
+    top: 1rem;
+    left: 1rem;
+    z-index: 999999;
+    background: #10b981;
+    border: none;
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+    transition: all 0.3s ease;
+">
+    <div style="width: 1.5rem; height: 0.15rem; background: white; border-radius: 0.125rem;"></div>
+    <div style="width: 1.5rem; height: 0.15rem; background: white; border-radius: 0.125rem;"></div>
+    <div style="width: 1.5rem; height: 0.15rem; background: white; border-radius: 0.125rem;"></div>
+</button>
+
+<script>
+function toggleSidebar() {
+    // Try multiple methods to toggle sidebar
+    const methods = [
+        () => {
+            // Method 1: Click Streamlit's native button
+            const collapsedBtn = document.querySelector('[data-testid="collapsedControl"]');
+            if (collapsedBtn) {
+                collapsedBtn.click();
+                return true;
+            }
+            return false;
+        },
+        () => {
+            // Method 2: Click header button
+            const headerBtn = document.querySelector('button[kind="header"]');
+            if (headerBtn) {
+                headerBtn.click();
+                return true;
+            }
+            return false;
+        },
+        () => {
+            // Method 3: Toggle sidebar visibility directly
+            const sidebar = document.querySelector('[data-testid="stSidebar"]');
+            if (sidebar) {
+                const isCollapsed = sidebar.getAttribute('aria-expanded') === 'false';
+                sidebar.style.display = isCollapsed ? 'block' : 'none';
+                return true;
+            }
+            return false;
+        },
+        () => {
+            // Method 4: Dispatch keyboard event (Ctrl+K for sidebar toggle)
+            const event = new KeyboardEvent('keydown', {
+                key: '[',
+                ctrlKey: true,
+                bubbles: true
+            });
+            document.dispatchEvent(event);
+            return true;
+        }
+    ];
+
+    // Try each method until one works
+    for (const method of methods) {
+        if (method()) {
+            console.log('Sidebar toggle successful');
+            break;
+        }
+    }
+}
+
+// Add hover effect
+document.getElementById('customHamburger').addEventListener('mouseenter', function() {
+    this.style.background = '#059669';
+    this.style.transform = 'scale(1.05)';
+});
+
+document.getElementById('customHamburger').addEventListener('mouseleave', function() {
+    this.style.background = '#10b981';
+    this.style.transform = 'scale(1)';
+});
+</script>
+""", unsafe_allow_html=True)
+
 # Main content
 if st.session_state.show_welcome and len(st.session_state.messages) == 0:
     st.markdown("""
