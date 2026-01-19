@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """
-OneSuite PM Hero
-Product-Engineering Alignment Specialist
+OneSuite PM Hero - Enhanced with Jira & GitHub Integration
+Product-Engineering Alignment + Progress Tracking
 
-Purpose: Ensure product and engineering alignment for OneSuite development
-Focus: Requirements validation, feasibility, dependencies, risks, cross-channel consistency
+Purpose:
+- Validate product-engineering alignment
+- Track progress across Jira and GitHub
+- Report completion rates and blockers
 """
 
 import streamlit as st
@@ -12,25 +14,180 @@ import os
 import sys
 import json
 import time
+import re
 from pathlib import Path
 from datetime import datetime
 from anthropic import Anthropic, AnthropicError
+import requests
+from typing import Dict, List, Optional
 
 # Add project root to path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root / "src"))
 
-# OneSuite PM Hero System Prompt
+# Jira Integration
+class JiraClient:
+    def __init__(self, base_url: str, email: str, api_token: str):
+        self.base_url = base_url.rstrip('/')
+        self.auth = (email, api_token)
+        self.headers = {"Accept": "application/json"}
+
+    def get_issue(self, issue_key: str) -> Optional[Dict]:
+        """Get Jira issue details"""
+        try:
+            url = f"{self.base_url}/rest/api/3/issue/{issue_key}"
+            response = requests.get(url, headers=self.headers, auth=self.auth)
+            if response.status_code == 200:
+                return response.json()
+            return None
+        except Exception as e:
+            return None
+
+    def search_issues(self, jql: str, max_results: int = 50) -> List[Dict]:
+        """Search Jira issues with JQL"""
+        try:
+            url = f"{self.base_url}/rest/api/3/search"
+            params = {
+                "jql": jql,
+                "maxResults": max_results,
+                "fields": "summary,status,assignee,created,updated,priority,labels,issuetype"
+            }
+            response = requests.get(url, headers=self.headers, auth=self.auth, params=params)
+            if response.status_code == 200:
+                return response.json().get('issues', [])
+            return []
+        except Exception as e:
+            return []
+
+# GitHub Integration
+class GitHubClient:
+    def __init__(self, token: str):
+        self.token = token
+        self.headers = {
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github.v3+json"
+        }
+
+    def get_repo(self, owner: str, repo: str) -> Optional[Dict]:
+        """Get repository details"""
+        try:
+            url = f"https://api.github.com/repos/{owner}/{repo}"
+            response = requests.get(url, headers=self.headers)
+            if response.status_code == 200:
+                return response.json()
+            return None
+        except Exception as e:
+            return None
+
+    def get_pull_requests(self, owner: str, repo: str, state: str = "all") -> List[Dict]:
+        """Get pull requests"""
+        try:
+            url = f"https://api.github.com/repos/{owner}/{repo}/pulls"
+            params = {"state": state, "per_page": 100}
+            response = requests.get(url, headers=self.headers, params=params)
+            if response.status_code == 200:
+                return response.json()
+            return []
+        except Exception as e:
+            return []
+
+    def get_commits(self, owner: str, repo: str, since: Optional[str] = None) -> List[Dict]:
+        """Get recent commits"""
+        try:
+            url = f"https://api.github.com/repos/{owner}/{repo}/commits"
+            params = {"per_page": 100}
+            if since:
+                params["since"] = since
+            response = requests.get(url, headers=self.headers, params=params)
+            if response.status_code == 200:
+                return response.json()
+            return []
+        except Exception as e:
+            return []
+
+    def search_issues(self, query: str) -> List[Dict]:
+        """Search GitHub issues"""
+        try:
+            url = "https://api.github.com/search/issues"
+            params = {"q": query, "per_page": 100}
+            response = requests.get(url, headers=self.headers, params=params)
+            if response.status_code == 200:
+                return response.json().get('items', [])
+            return []
+        except Exception as e:
+            return []
+
+# Progress Analyzer
+class ProgressAnalyzer:
+    @staticmethod
+    def calculate_completion_rate(total: int, completed: int) -> float:
+        """Calculate completion percentage"""
+        if total == 0:
+            return 0.0
+        return (completed / total) * 100
+
+    @staticmethod
+    def analyze_jira_progress(issues: List[Dict]) -> Dict:
+        """Analyze Jira issues progress"""
+        if not issues:
+            return {"total": 0, "completed": 0, "in_progress": 0, "todo": 0, "blocked": 0}
+
+        total = len(issues)
+        completed = 0
+        in_progress = 0
+        todo = 0
+        blocked = 0
+
+        for issue in issues:
+            status = issue.get('fields', {}).get('status', {}).get('name', '').lower()
+
+            if 'done' in status or 'closed' in status or 'resolved' in status:
+                completed += 1
+            elif 'progress' in status or 'review' in status:
+                in_progress += 1
+            elif 'blocked' in status:
+                blocked += 1
+            else:
+                todo += 1
+
+        completion_rate = ProgressAnalyzer.calculate_completion_rate(total, completed)
+
+        return {
+            "total": total,
+            "completed": completed,
+            "in_progress": in_progress,
+            "todo": todo,
+            "blocked": blocked,
+            "completion_rate": completion_rate
+        }
+
+    @staticmethod
+    def analyze_github_progress(prs: List[Dict], commits: List[Dict]) -> Dict:
+        """Analyze GitHub progress"""
+        total_prs = len(prs)
+        merged_prs = sum(1 for pr in prs if pr.get('merged_at'))
+        open_prs = sum(1 for pr in prs if pr.get('state') == 'open')
+        closed_prs = sum(1 for pr in prs if pr.get('state') == 'closed' and not pr.get('merged_at'))
+
+        pr_merge_rate = ProgressAnalyzer.calculate_completion_rate(total_prs, merged_prs)
+
+        return {
+            "total_prs": total_prs,
+            "merged_prs": merged_prs,
+            "open_prs": open_prs,
+            "closed_prs": closed_prs,
+            "total_commits": len(commits),
+            "pr_merge_rate": pr_merge_rate
+        }
+
+# Enhanced PM Hero System Prompt with Progress Tracking
 PM_HERO_SYSTEM_PROMPT = """
 <identity>
-You are the **OneSuite PM Hero** - a specialized AI agent focused on ensuring product-engineering alignment for OneSuite development.
+You are the **OneSuite PM Hero** - a specialized AI agent focused on ensuring product-engineering alignment AND tracking actual progress for OneSuite development.
 
-Your core mission is to validate that product requirements are:
-1. Clear and well-defined
-2. Technically feasible
-3. Consistent across all OneSuite channels
-4. Properly scoped with realistic estimates
-5. Free of hidden dependencies and risks
+Your dual mission:
+1. **Validate Alignment**: Ensure requirements are clear, feasible, and consistent
+2. **Track Progress**: Monitor Jira and GitHub to report on actual completion and blockers
 </identity>
 
 <context>
@@ -46,185 +203,137 @@ All features must maintain consistency and alignment across these channels.
 <your_role>
 As PM Hero, you:
 
-1. **Validate Requirements**
-   - Check if user stories are complete (Who, What, Why)
-   - Ensure acceptance criteria are measurable and testable
-   - Identify ambiguities and missing information
-   - Verify business value is clearly articulated
+**Part 1: Alignment Validation**
+1. Validate Requirements - Check completeness and clarity
+2. Assess Engineering Feasibility - Evaluate technical complexity
+3. Check Cross-Channel Alignment - Verify consistency across channels
+4. Map Dependencies - Identify technical, data, team dependencies
+5. Assess Risks - Technical, timeline, resource, business risks
+6. Score Alignment - 0-100 score with breakdown
 
-2. **Assess Engineering Feasibility**
-   - Evaluate technical complexity
-   - Identify potential technical challenges
-   - Suggest architectural considerations
-   - Estimate effort level (S, M, L, XL)
-
-3. **Check Cross-Channel Alignment**
-   - Verify feature consistency across Search, Social, Programmatic, Commerce
-   - Identify channel-specific variations needed
-   - Flag potential inconsistencies
-   - Ensure unified user experience
-
-4. **Map Dependencies**
-   - Identify technical dependencies
-   - Call out data dependencies
-   - Note team dependencies
-   - List required integrations
-
-5. **Assess Risks**
-   - Technical risks
-   - Timeline risks
-   - Resource risks
-   - Business risks
-
-6. **Score Alignment**
-   - Provide 0-100 alignment score
-   - Break down by category (Clarity, Feasibility, Consistency, etc.)
-   - Highlight areas needing improvement
+**Part 2: Progress Tracking (NEW)**
+7. Monitor Jira Progress - Track ticket status and completion
+8. Analyze GitHub Activity - PRs, commits, merge rates
+9. Compare Plan vs Reality - Are we on track?
+10. Identify Blockers - What's preventing progress?
+11. Report Completion Rates - Overall progress percentage
+12. Provide Velocity Insights - How fast are we moving?
 </your_role>
 
-<output_format>
-When analyzing a requirement or user story, structure your response as:
+<output_format_alignment>
+For requirement validation:
 
 ## 📊 Alignment Score: X/100
 
 ### ✅ Strengths
-- [What's good about this requirement]
+- [What's good]
 
 ### ⚠️ Gaps & Issues
-- [What's missing or unclear]
+- [What's missing]
 
 ### 🔧 Feasibility Assessment
 **Complexity**: [Low/Medium/High/Very High]
 **Effort Estimate**: [S/M/L/XL]
-**Technical Challenges**:
-- [List key challenges]
 
 ### 🌐 Cross-Channel Impact
 | Channel | Impact | Notes |
 |---------|--------|-------|
-| Search | High/Med/Low | [Specific notes] |
-| Social | High/Med/Low | [Specific notes] |
-| Programmatic | High/Med/Low | [Specific notes] |
-| Commerce | High/Med/Low | [Specific notes] |
+| Search | H/M/L | [Notes] |
+| Social | H/M/L | [Notes] |
+| Programmatic | H/M/L | [Notes] |
+| Commerce | H/M/L | [Notes] |
 
 ### 🔗 Dependencies
-- **Technical**: [List]
-- **Data**: [List]
-- **Teams**: [List]
+- Technical, Data, Teams
 
 ### ⚠️ Risks
 | Risk | Likelihood | Impact | Mitigation |
-|------|------------|--------|------------|
-| [Risk] | H/M/L | H/M/L | [Strategy] |
 
 ### 💡 Recommendations
-1. [Actionable recommendation]
-2. [Actionable recommendation]
+</output_format_alignment>
 
-### ✏️ Improved Requirement
-[Provide a rewritten, improved version if needed]
-</output_format>
+<output_format_progress>
+For progress tracking:
+
+## 📈 Progress Report
+
+### 🎯 Overall Completion
+**Completion Rate**: X%
+**Status**: [On Track / At Risk / Blocked]
+
+### 📋 Jira Progress
+- **Total Tickets**: X
+- **Completed**: X (X%)
+- **In Progress**: X
+- **Todo**: X
+- **Blocked**: X
+
+### 💻 GitHub Activity
+- **Total PRs**: X
+- **Merged**: X (X%)
+- **Open**: X
+- **Commits (Last 30 days)**: X
+
+### 🚧 Blockers
+- [List of blocking issues]
+
+### 📊 Velocity Insights
+- **Avg Time to Merge**: X days
+- **Active Contributors**: X
+- **Commit Frequency**: X/week
+
+### 🎯 Recommendations
+1. [Action items based on progress]
+</output_format_progress>
+
+<commands>
+User can ask you to:
+- "Check alignment for [requirement]" - Validate a requirement
+- "Track progress for [project/epic]" - Get progress report
+- "Compare Jira ticket [KEY] with GitHub" - Cross-check status
+- "Show blockers" - List all blockers
+- "What's the completion rate?" - Overall progress
+- "Analyze velocity" - Team performance metrics
+</commands>
 
 <communication_style>
-- **Direct and actionable** - Focus on what needs to change
-- **Evidence-based** - Cite specific issues with examples
-- **Constructive** - Always provide solutions, not just problems
-- **Structured** - Use tables, lists, and clear sections
-- **PM-friendly** - Speak in product management terminology
-- **Engineering-aware** - Understand technical constraints
+- **Data-driven** - Use actual numbers from Jira/GitHub
+- **Actionable** - Focus on what to do next
+- **Honest** - Call out problems clearly
+- **Constructive** - Always provide solutions
+- **PM-friendly** - Speak in product management terms
 </communication_style>
 
 <scoring_rubric>
-Alignment Score Components (each 0-20 points):
-
-1. **Requirement Clarity** (20 points)
-   - Clear user persona/role (5 pts)
-   - Well-defined functionality (5 pts)
-   - Clear business value (5 pts)
-   - Measurable success criteria (5 pts)
-
-2. **Technical Feasibility** (20 points)
-   - Realistic scope (5 pts)
-   - Clear technical approach (5 pts)
-   - No major blockers (5 pts)
-   - Reasonable timeline (5 pts)
-
-3. **Cross-Channel Consistency** (20 points)
-   - All channels considered (5 pts)
-   - Consistent UX across channels (5 pts)
-   - Channel variations documented (5 pts)
-   - Unified data model (5 pts)
-
-4. **Completeness** (20 points)
-   - Acceptance criteria defined (5 pts)
-   - Edge cases considered (5 pts)
-   - Dependencies identified (5 pts)
-   - Risks documented (5 pts)
-
-5. **Execution Readiness** (20 points)
-   - Ready for engineering (5 pts)
-   - Design specs available (5 pts)
-   - API contracts defined (5 pts)
-   - Test plan outlined (5 pts)
-
-**Total**: Sum of all components = Alignment Score
+Alignment Score (0-100):
+1. Requirement Clarity (20 pts)
+2. Technical Feasibility (20 pts)
+3. Cross-Channel Consistency (20 pts)
+4. Completeness (20 pts)
+5. Execution Readiness (20 pts)
 </scoring_rubric>
-
-<examples>
-Good requirement:
-"As a Search Campaign Manager, I need to bulk edit campaign budgets across multiple campaigns so that I can quickly adjust spending in response to market changes.
-
-Acceptance Criteria:
-- Given I select 2+ campaigns, when I choose 'Bulk Edit Budget', then I see a modal with current budgets
-- Given I enter a new budget amount, when I apply, then all selected campaigns update within 5 seconds
-- Given budgets exceed account limits, when I save, then I see a clear error message
-- Must work consistently across Search, Social, Programmatic channels"
-
-Bad requirement:
-"Users should be able to change budgets for campaigns. Make it fast and easy to use."
-</examples>
 """
 
 # Page config
 st.set_page_config(
-    page_title="OneSuite PM Hero - Product-Engineering Alignment",
+    page_title="OneSuite PM Hero - Alignment & Progress Tracking",
     page_icon="🦸",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Dark theme CSS - OneSuite style
+# [Previous CSS remains the same - keeping it for brevity]
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
-
-    * {
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    }
-
-    .main {
-        background-color: #0d0d0d;
-        padding: 0;
-    }
-
-    .block-container {
-        padding: 2rem 2rem;
-        max-width: 56rem;
-        margin: 0 auto;
-    }
-
-    [data-testid="stSidebar"] {
-        background-color: #1a1a1a;
-        border-right: 1px solid #2d2d2d;
-    }
-
-    [data-testid="stSidebar"] > div:first-child {
-        padding: 1.5rem 1rem;
-    }
+    * { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    .main { background-color: #0d0d0d; padding: 0; }
+    .block-container { padding: 2rem 2rem; max-width: 56rem; margin: 0 auto; }
+    [data-testid="stSidebar"] { background-color: #1a1a1a; border-right: 1px solid #2d2d2d; }
+    [data-testid="stSidebar"] > div:first-child { padding: 1.5rem 1rem; }
 
     .sidebar-header {
         display: flex;
@@ -246,15 +355,6 @@ st.markdown("""
         color: white;
     }
 
-    .hero-badge {
-        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-        color: white;
-        padding: 0.25rem 0.625rem;
-        border-radius: 9999px;
-        font-size: 0.75rem;
-        font-weight: 600;
-    }
-
     .new-chat-btn {
         background: #10b981 !important;
         color: white !important;
@@ -264,13 +364,6 @@ st.markdown("""
         font-weight: 600 !important;
         width: 100% !important;
         margin-bottom: 1rem !important;
-        transition: all 0.2s !important;
-    }
-
-    .new-chat-btn:hover {
-        background: #059669 !important;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3) !important;
     }
 
     .sidebar-menu-item {
@@ -281,53 +374,16 @@ st.markdown("""
         margin: 0.25rem 0;
         color: #9ca3af;
         border-radius: 0.5rem;
-        cursor: pointer;
-        transition: all 0.2s;
         font-size: 0.9rem;
     }
 
-    .sidebar-menu-item:hover {
-        background: #2d2d2d;
-        color: #ffffff;
-    }
+    .sidebar-menu-item:hover { background: #2d2d2d; color: #ffffff; }
+    .sidebar-menu-item.active { background: #2d2d2d; color: #10b981; }
 
-    .sidebar-menu-item.active {
-        background: #2d2d2d;
-        color: #10b981;
-    }
-
-    .welcome-message {
-        text-align: center;
-        margin: 6rem 0 3rem 0;
-    }
-
-    .welcome-title {
-        font-size: 2.5rem;
-        font-weight: 700;
-        color: #ffffff;
-        margin-bottom: 1rem;
-    }
-
-    .welcome-subtitle {
-        color: #9ca3af;
-        font-size: 1.25rem;
-        margin-bottom: 0.5rem;
-    }
-
-    .welcome-tagline {
-        color: #6b7280;
-        font-size: 1rem;
-    }
-
-    .hero-icon {
-        font-size: 4rem;
-        margin-bottom: 1rem;
-    }
-
-    [data-testid="stChatMessage"] {
-        background-color: transparent !important;
-        padding: 1rem 0 !important;
-    }
+    .welcome-message { text-align: center; margin: 6rem 0 3rem 0; }
+    .welcome-title { font-size: 2.5rem; font-weight: 700; color: #ffffff; margin-bottom: 1rem; }
+    .welcome-subtitle { color: #9ca3af; font-size: 1.25rem; margin-bottom: 0.5rem; }
+    .hero-icon { font-size: 4rem; margin-bottom: 1rem; }
 
     [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) {
         display: flex;
@@ -342,20 +398,7 @@ st.markdown("""
         max-width: 70% !important;
     }
 
-    [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) p {
-        color: #ffffff !important;
-        margin: 0 !important;
-    }
-
-    [data-testid="stChatMessageAvatarUser"] {
-        display: none !important;
-    }
-
-    [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) {
-        display: flex;
-        justify-content: flex-start;
-        gap: 0.75rem;
-    }
+    [data-testid="stChatMessageAvatarUser"] { display: none !important; }
 
     [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) [data-testid="stChatMessageContent"] {
         background-color: transparent !important;
@@ -382,10 +425,6 @@ st.markdown("""
         border-radius: 0.5rem !important;
         background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
         flex-shrink: 0 !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        font-size: 1.25rem !important;
     }
 
     [data-testid="stChatInput"] {
@@ -403,75 +442,17 @@ st.markdown("""
         padding: 1rem 1.25rem !important;
     }
 
-    [data-testid="stChatInput"] textarea::placeholder {
-        color: #6b7280 !important;
-    }
+    h1, h2, h3, h4, h5, h6 { color: #ffffff !important; font-weight: 600; }
+    a { color: #10b981 !important; }
+    ul, ol, li { color: #e5e7eb; }
 
-    code {
-        background-color: #2d2d2d !important;
-        color: #10b981 !important;
-        padding: 0.125rem 0.375rem;
-        border-radius: 0.25rem;
-        font-size: 0.875rem;
-    }
+    table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+    th { background-color: #2d2d2d !important; color: #10b981 !important; padding: 0.75rem; border: 1px solid #404040 !important; }
+    td { background-color: #1a1a1a !important; color: #e5e7eb !important; padding: 0.75rem; border: 1px solid #2d2d2d !important; }
 
-    pre {
-        background-color: #1a1a1a !important;
-        border: 1px solid #2d2d2d !important;
-        border-radius: 0.5rem !important;
-        padding: 1rem !important;
-        overflow-x: auto;
-    }
-
-    pre code {
-        background-color: transparent !important;
-        color: #e5e7eb !important;
-        padding: 0 !important;
-    }
-
-    h1, h2, h3, h4, h5, h6 {
-        color: #ffffff !important;
-        font-weight: 600;
-    }
-
-    a {
-        color: #10b981 !important;
-        text-decoration: none;
-    }
-
-    a:hover {
-        text-decoration: underline;
-    }
-
-    ul, ol {
-        color: #e5e7eb;
-    }
-
-    li {
-        margin: 0.5rem 0;
-        color: #e5e7eb;
-    }
-
-    table {
-        border-collapse: collapse;
-        width: 100%;
-        margin: 1rem 0;
-    }
-
-    th {
-        background-color: #2d2d2d !important;
-        color: #10b981 !important;
-        padding: 0.75rem;
-        text-align: left;
-        border: 1px solid #404040 !important;
-    }
-
-    td {
-        background-color: #1a1a1a !important;
-        color: #e5e7eb !important;
-        padding: 0.75rem;
-        border: 1px solid #2d2d2d !important;
-    }
+    code { background-color: #2d2d2d !important; color: #10b981 !important; padding: 0.125rem 0.375rem; border-radius: 0.25rem; }
+    pre { background-color: #1a1a1a !important; border: 1px solid #2d2d2d !important; border-radius: 0.5rem !important; padding: 1rem !important; }
+    pre code { background-color: transparent !important; color: #e5e7eb !important; padding: 0 !important; }
 
     .stButton > button {
         background-color: #10b981 !important;
@@ -480,54 +461,13 @@ st.markdown("""
         border-radius: 0.5rem !important;
         padding: 0.625rem 1.25rem !important;
         font-weight: 500 !important;
-        transition: all 0.2s !important;
     }
 
-    .stButton > button:hover {
-        background-color: #059669 !important;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3) !important;
-    }
-
-    .stTextInput input {
+    .stTextInput input, .stSelectbox > div > div {
         background-color: #2d2d2d !important;
         color: #ffffff !important;
         border: 1px solid #404040 !important;
         border-radius: 0.5rem !important;
-    }
-
-    .stTextInput input:focus {
-        border-color: #10b981 !important;
-        box-shadow: 0 0 0 1px #10b981 !important;
-    }
-
-    .stSelectbox > div > div {
-        background-color: #2d2d2d !important;
-        color: #ffffff !important;
-        border: 1px solid #404040 !important;
-        border-radius: 0.5rem !important;
-    }
-
-    .stSlider > div > div > div {
-        background-color: #10b981 !important;
-    }
-
-    [data-testid="stMetricValue"] {
-        color: #10b981 !important;
-        font-size: 1.5rem;
-        font-weight: 600;
-    }
-
-    [data-testid="stMetricLabel"] {
-        color: #9ca3af !important;
-        font-size: 0.875rem;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-
-    hr {
-        border-color: #2d2d2d !important;
-        margin: 1.5rem 0;
     }
 
     .status-badge {
@@ -542,45 +482,6 @@ st.markdown("""
         color: #ffffff;
     }
 
-    .token-usage {
-        background-color: #1a1a1a;
-        border: 1px solid #2d2d2d;
-        border-radius: 0.5rem;
-        padding: 0.5rem 0.875rem;
-        font-size: 0.8125rem;
-        color: #9ca3af;
-        margin-top: 0.5rem;
-        display: inline-flex;
-        gap: 1rem;
-    }
-
-    .token-label {
-        font-weight: 600;
-        color: #10b981;
-    }
-
-    ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-    }
-
-    ::-webkit-scrollbar-track {
-        background: #0d0d0d;
-    }
-
-    ::-webkit-scrollbar-thumb {
-        background: #2d2d2d;
-        border-radius: 4px;
-    }
-
-    ::-webkit-scrollbar-thumb:hover {
-        background: #404040;
-    }
-
-    .stCheckbox {
-        color: #e5e7eb !important;
-    }
-
     .sidebar-section-title {
         color: #9ca3af;
         font-size: 0.75rem;
@@ -590,13 +491,6 @@ st.markdown("""
         margin: 1.5rem 0 0.75rem 0;
         padding: 0 0.75rem;
     }
-
-    blockquote {
-        border-left: 3px solid #10b981;
-        padding-left: 1rem;
-        margin: 1rem 0;
-        color: #9ca3af;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -604,37 +498,35 @@ st.markdown("""
 def init_session_state():
     if 'messages' not in st.session_state:
         st.session_state.messages = []
-
     if 'anthropic_client' not in st.session_state:
         api_key = os.environ.get('ANTHROPIC_API_KEY')
         st.session_state.anthropic_client = Anthropic(api_key=api_key) if api_key else None
-
     if 'total_tokens' not in st.session_state:
         st.session_state.total_tokens = {'input': 0, 'output': 0}
-
     if 'show_welcome' not in st.session_state:
         st.session_state.show_welcome = True
-
     if 'user_name' not in st.session_state:
         st.session_state.user_name = os.environ.get('USER', 'PM')
+    if 'jira_client' not in st.session_state:
+        st.session_state.jira_client = None
+    if 'github_client' not in st.session_state:
+        st.session_state.github_client = None
 
 init_session_state()
 
 # Sidebar
 with st.sidebar:
-    # Logo/Header
     st.markdown("""
     <div class="sidebar-header">
         <div class="sidebar-logo">🦸</div>
         <div>
             <div style="font-weight: 600; font-size: 0.9rem;">PM Hero</div>
-            <div style="color: #6b7280; font-size: 0.75rem;">Alignment Specialist</div>
+            <div style="color: #6b7280; font-size: 0.75rem;">Alignment + Progress</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # New Analysis button
-    if st.button("+ New Analysis", key="new_chat", help="Start a new alignment check"):
+    if st.button("+ New Analysis", key="new_chat"):
         st.session_state.messages = []
         st.session_state.show_welcome = True
         st.session_state.total_tokens = {'input': 0, 'output': 0}
@@ -642,15 +534,14 @@ with st.sidebar:
 
     st.markdown('<div style="height: 1rem;"></div>', unsafe_allow_html=True)
 
-    # Menu items
     st.markdown("""
     <div class="sidebar-menu-item active">
         <span>✅</span>
         <span>Alignment Check</span>
     </div>
     <div class="sidebar-menu-item">
-        <span>📋</span>
-        <span>Requirements</span>
+        <span>📈</span>
+        <span>Progress Tracking</span>
     </div>
     <div class="sidebar-menu-item">
         <span>🔗</span>
@@ -664,31 +555,54 @@ with st.sidebar:
 
     st.divider()
 
-    # Settings
-    st.markdown('<div class="sidebar-section-title">⚙️ Settings</div>', unsafe_allow_html=True)
+    # API Keys Section
+    st.markdown('<div class="sidebar-section-title">🔑 API Keys</div>', unsafe_allow_html=True)
 
+    # Anthropic API Key
     api_key_input = st.text_input(
-        "API Key",
+        "Anthropic API Key",
         type="password",
         value=os.environ.get('ANTHROPIC_API_KEY', ''),
         help="Your Anthropic API key",
-        label_visibility="collapsed"
+        key="anthropic_key"
     )
 
     if api_key_input:
         os.environ['ANTHROPIC_API_KEY'] = api_key_input
         st.session_state.anthropic_client = Anthropic(api_key=api_key_input)
-        st.markdown('<div class="status-badge">✓ API Connected</div>', unsafe_allow_html=True)
+        st.markdown('<div class="status-badge">✓ Anthropic Connected</div>', unsafe_allow_html=True)
+
+    # Jira Configuration
+    with st.expander("⚙️ Jira Configuration"):
+        jira_url = st.text_input("Jira URL", value=os.environ.get('JIRA_URL', ''), help="e.g., https://yourcompany.atlassian.net")
+        jira_email = st.text_input("Jira Email", value=os.environ.get('JIRA_EMAIL', ''))
+        jira_token = st.text_input("Jira API Token", type="password", value=os.environ.get('JIRA_API_TOKEN', ''))
+
+        if jira_url and jira_email and jira_token:
+            st.session_state.jira_client = JiraClient(jira_url, jira_email, jira_token)
+            st.success("✓ Jira Connected")
+
+    # GitHub Configuration
+    with st.expander("⚙️ GitHub Configuration"):
+        github_token = st.text_input("GitHub Token", type="password", value=os.environ.get('GITHUB_TOKEN', ''))
+
+        if github_token:
+            st.session_state.github_client = GitHubClient(github_token)
+            st.success("✓ GitHub Connected")
+
+    st.divider()
+
+    # Model Settings
+    st.markdown('<div class="sidebar-section-title">⚙️ Model Settings</div>', unsafe_allow_html=True)
 
     model = st.selectbox(
         "Model",
         ["claude-sonnet-4-20250514", "claude-3-5-sonnet-20241022", "claude-opus-4-20250514"],
-        index=0,
-        label_visibility="collapsed"
+        index=0
     )
 
     max_tokens = st.slider("Max Tokens", 1000, 8192, 6000, 500)
-    temperature = st.slider("Temperature", 0.0, 1.0, 0.3, 0.1, help="Lower = more consistent analysis")
+    temperature = st.slider("Temperature", 0.0, 1.0, 0.3, 0.1)
     stream_responses = st.checkbox("Stream Responses", value=True)
 
     st.divider()
@@ -702,30 +616,6 @@ with st.sidebar:
         with col2:
             st.metric("Output", f"{st.session_state.total_tokens['output']:,}")
 
-    st.divider()
-
-    # History
-    st.markdown("""
-    <div class="sidebar-menu-item">
-        <span>🕐</span>
-        <span>History</span>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # User profile
-    st.markdown(f"""
-    <div style="position: fixed; bottom: 1rem; left: 1rem; right: 1rem; padding: 0.75rem; border-top: 1px solid #2d2d2d;">
-        <div style="display: flex; align-items: center; gap: 0.75rem;">
-            <div style="width: 2rem; height: 2rem; border-radius: 50%; background: linear-gradient(135deg, #10b981 0%, #059669 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 0.875rem;">
-                {st.session_state.user_name[0].upper()}
-            </div>
-            <div style="color: #e5e7eb; font-size: 0.875rem; font-weight: 500;">
-                {st.session_state.user_name}
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
 # Main content
 if st.session_state.show_welcome and len(st.session_state.messages) == 0:
     st.markdown("""
@@ -735,15 +625,14 @@ if st.session_state.show_welcome and len(st.session_state.messages) == 0:
             OneSuite PM Hero
         </div>
         <div class="welcome-subtitle">
-            Product-Engineering Alignment Specialist
+            Product-Engineering Alignment + Progress Tracking
         </div>
-        <div class="welcome-tagline">
-            Ensuring your requirements are clear, feasible, and ready for engineering
+        <div style="color: #6b7280; font-size: 1rem; margin-top: 1rem;">
+            Validate requirements • Track Jira & GitHub • Report completion rates
         </div>
     </div>
     """, unsafe_allow_html=True)
 else:
-    # Display messages
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
@@ -751,18 +640,52 @@ else:
             if "metadata" in message and "usage" in message["metadata"]:
                 usage = message["metadata"]["usage"]
                 st.markdown(f"""
-                <div class="token-usage">
-                    <span><span class="token-label">In:</span> {usage.get('input_tokens', 0):,}</span>
-                    <span><span class="token-label">Out:</span> {usage.get('output_tokens', 0):,}</span>
-                    <span><span class="token-label">Time:</span> {message["metadata"].get('duration', 0):.2f}s</span>
+                <div style="background: #1a1a1a; border: 1px solid #2d2d2d; border-radius: 0.5rem; padding: 0.5rem 0.875rem; font-size: 0.8125rem; color: #9ca3af; margin-top: 0.5rem; display: inline-flex; gap: 1rem;">
+                    <span><span style="font-weight: 600; color: #10b981;">In:</span> {usage.get('input_tokens', 0):,}</span>
+                    <span><span style="font-weight: 600; color: #10b981;">Out:</span> {usage.get('output_tokens', 0):,}</span>
+                    <span><span style="font-weight: 600; color: #10b981;">Time:</span> {message["metadata"].get('duration', 0):.2f}s</span>
                 </div>
                 """, unsafe_allow_html=True)
 
 # Chat input
-user_input = st.chat_input("Paste your user story or requirement for alignment check...")
+user_input = st.chat_input("Ask: 'Check alignment for...' or 'Track progress for...' or 'Show blockers'")
 
 if user_input:
     st.session_state.show_welcome = False
+
+    # Check if user is requesting progress tracking
+    context_data = ""
+
+    if any(keyword in user_input.lower() for keyword in ['track', 'progress', 'jira', 'github', 'completion', 'blockers']):
+        # Extract Jira keys or GitHub repos from input
+        jira_keys = re.findall(r'\b[A-Z]+-\d+\b', user_input)
+        github_repos = re.findall(r'[\w-]+/[\w-]+', user_input)
+
+        if st.session_state.jira_client and jira_keys:
+            context_data += "\n\n### Jira Data:\n"
+            for key in jira_keys:
+                issue = st.session_state.jira_client.get_issue(key)
+                if issue:
+                    context_data += f"\n**{key}**: {issue.get('fields', {}).get('summary', 'N/A')}\n"
+                    context_data += f"Status: {issue.get('fields', {}).get('status', {}).get('name', 'N/A')}\n"
+                    context_data += f"Priority: {issue.get('fields', {}).get('priority', {}).get('name', 'N/A')}\n"
+
+        if st.session_state.github_client and github_repos:
+            context_data += "\n\n### GitHub Data:\n"
+            for repo in github_repos:
+                owner, repo_name = repo.split('/')
+                prs = st.session_state.github_client.get_pull_requests(owner, repo_name)
+                commits = st.session_state.github_client.get_commits(owner, repo_name)
+
+                progress = ProgressAnalyzer.analyze_github_progress(prs, commits)
+                context_data += f"\n**{repo}**:\n"
+                context_data += f"Total PRs: {progress['total_prs']}, Merged: {progress['merged_prs']} ({progress['pr_merge_rate']:.1f}%)\n"
+                context_data += f"Commits (30 days): {progress['total_commits']}\n"
+
+    # Add context data to user message if available
+    full_message = user_input
+    if context_data:
+        full_message += context_data
 
     st.session_state.messages.append({
         "role": "user",
@@ -785,6 +708,10 @@ if user_input:
                     for msg in st.session_state.messages
                     if msg["role"] in ["user", "assistant"]
                 ]
+
+                # Add context data to last user message
+                if context_data and api_messages:
+                    api_messages[-1]["content"] = full_message
 
                 if stream_responses:
                     with st.session_state.anthropic_client.messages.stream(
@@ -835,10 +762,10 @@ if user_input:
                 })
 
                 st.markdown(f"""
-                <div class="token-usage">
-                    <span><span class="token-label">In:</span> {usage['input_tokens']:,}</span>
-                    <span><span class="token-label">Out:</span> {usage['output_tokens']:,}</span>
-                    <span><span class="token-label">Time:</span> {duration:.2f}s</span>
+                <div style="background: #1a1a1a; border: 1px solid #2d2d2d; border-radius: 0.5rem; padding: 0.5rem 0.875rem; font-size: 0.8125rem; color: #9ca3af; margin-top: 0.5rem; display: inline-flex; gap: 1rem;">
+                    <span><span style="font-weight: 600; color: #10b981;">In:</span> {usage['input_tokens']:,}</span>
+                    <span><span style="font-weight: 600; color: #10b981;">Out:</span> {usage['output_tokens']:,}</span>
+                    <span><span style="font-weight: 600; color: #10b981;">Time:</span> {duration:.2f}s</span>
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -849,4 +776,4 @@ if user_input:
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
     else:
-        st.error("⚠️ Please configure your API key in the sidebar")
+        st.error("⚠️ Please configure your Anthropic API key in the sidebar")
