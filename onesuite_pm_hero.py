@@ -745,67 +745,77 @@ st.markdown("""
 
 <script>
 function toggleSidebar() {
-    // Try multiple methods to toggle sidebar
-    const methods = [
-        () => {
-            // Method 1: Click Streamlit's native button
-            const collapsedBtn = document.querySelector('[data-testid="collapsedControl"]');
-            if (collapsedBtn) {
-                collapsedBtn.click();
-                return true;
-            }
-            return false;
-        },
-        () => {
-            // Method 2: Click header button
-            const headerBtn = document.querySelector('button[kind="header"]');
-            if (headerBtn) {
-                headerBtn.click();
-                return true;
-            }
-            return false;
-        },
-        () => {
-            // Method 3: Toggle sidebar visibility directly
-            const sidebar = document.querySelector('[data-testid="stSidebar"]');
-            if (sidebar) {
-                const isCollapsed = sidebar.getAttribute('aria-expanded') === 'false';
-                sidebar.style.display = isCollapsed ? 'block' : 'none';
-                return true;
-            }
-            return false;
-        },
-        () => {
-            // Method 4: Dispatch keyboard event (Ctrl+K for sidebar toggle)
-            const event = new KeyboardEvent('keydown', {
-                key: '[',
-                ctrlKey: true,
-                bubbles: true
-            });
-            document.dispatchEvent(event);
-            return true;
-        }
+    console.log('Toggle sidebar clicked');
+
+    // Method 1: Try to find and click Streamlit's buttons
+    const buttons = [
+        document.querySelector('[data-testid="collapsedControl"]'),
+        document.querySelector('[data-testid="baseButton-header"]'),
+        document.querySelector('button[kind="header"]'),
+        document.querySelector('section[data-testid="stSidebar"] button')
     ];
 
-    // Try each method until one works
-    for (const method of methods) {
-        if (method()) {
-            console.log('Sidebar toggle successful');
-            break;
+    for (const btn of buttons) {
+        if (btn) {
+            console.log('Found button, clicking:', btn);
+            btn.click();
+            return;
         }
     }
+
+    // Method 2: Direct DOM manipulation with transitions
+    const sidebar = document.querySelector('[data-testid="stSidebar"]');
+    const sidebarParent = sidebar ? sidebar.parentElement : null;
+
+    if (sidebar) {
+        console.log('Toggling sidebar via DOM');
+
+        // Check current state
+        const rect = sidebar.getBoundingClientRect();
+        const isHidden = rect.left < -300 || sidebar.style.marginLeft === '-21rem';
+
+        if (isHidden) {
+            // Show sidebar
+            sidebar.style.transform = 'translateX(0)';
+            sidebar.style.marginLeft = '0';
+            sidebar.style.display = 'block';
+            if (sidebarParent) {
+                sidebarParent.style.transform = 'translateX(0)';
+                sidebarParent.style.marginLeft = '0';
+            }
+        } else {
+            // Hide sidebar
+            sidebar.style.transform = 'translateX(-100%)';
+            sidebar.style.marginLeft = '-21rem';
+            if (sidebarParent) {
+                sidebarParent.style.transform = 'translateX(-100%)';
+                sidebarParent.style.marginLeft = '-21rem';
+            }
+        }
+        return;
+    }
+
+    console.log('Could not find sidebar to toggle');
 }
 
-// Add hover effect
-document.getElementById('customHamburger').addEventListener('mouseenter', function() {
-    this.style.background = '#059669';
-    this.style.transform = 'scale(1.05)';
-});
+// Initialize after page loads
+setTimeout(function() {
+    const hamburger = document.getElementById('customHamburger');
+    if (hamburger) {
+        // Add hover effects
+        hamburger.addEventListener('mouseenter', function() {
+            this.style.background = '#059669';
+            this.style.transform = 'scale(1.05)';
+        });
 
-document.getElementById('customHamburger').addEventListener('mouseleave', function() {
-    this.style.background = '#10b981';
-    this.style.transform = 'scale(1)';
-});
+        hamburger.addEventListener('mouseleave', function() {
+            this.style.background = '#10b981';
+            this.style.transform = 'scale(1)';
+        });
+
+        console.log('Custom hamburger initialized');
+    }
+}, 100);
 </script>
 """, unsafe_allow_html=True)
 
