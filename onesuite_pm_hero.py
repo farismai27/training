@@ -373,13 +373,37 @@ st.markdown("""
         padding: 0.75rem !important;
         top: 1rem !important;
         left: 1rem !important;
+        z-index: 999999 !important;
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4) !important;
     }
 
     [data-testid="collapsedControl"]:hover {
         background: #059669 !important;
+        transform: scale(1.05);
     }
 
     [data-testid="collapsedControl"] svg {
+        color: white !important;
+        width: 1.5rem !important;
+        height: 1.5rem !important;
+    }
+
+    /* Also style the button when sidebar is open */
+    button[kind="header"] {
+        background: #10b981 !important;
+        border-radius: 0.5rem !important;
+        padding: 0.75rem !important;
+        position: fixed !important;
+        top: 1rem !important;
+        left: 1rem !important;
+        z-index: 999999 !important;
+    }
+
+    button[kind="header"]:hover {
+        background: #059669 !important;
+    }
+
+    button[kind="header"] svg {
         color: white !important;
     }
 
@@ -540,6 +564,38 @@ st.markdown("""
         padding: 0 0.75rem;
     }
 </style>
+
+<script>
+// Ensure sidebar toggle button is visible
+document.addEventListener('DOMContentLoaded', function() {
+    function makeToggleVisible() {
+        // Find the collapsed control button
+        const collapsedBtn = document.querySelector('[data-testid="collapsedControl"]');
+        const headerBtn = document.querySelector('button[kind="header"]');
+
+        if (collapsedBtn) {
+            collapsedBtn.style.display = 'flex';
+            collapsedBtn.style.visibility = 'visible';
+            collapsedBtn.style.opacity = '1';
+        }
+
+        if (headerBtn) {
+            headerBtn.style.display = 'flex';
+            headerBtn.style.visibility = 'visible';
+            headerBtn.style.opacity = '1';
+        }
+    }
+
+    // Run immediately and after short delay to catch dynamic content
+    makeToggleVisible();
+    setTimeout(makeToggleVisible, 100);
+    setTimeout(makeToggleVisible, 500);
+
+    // Watch for DOM changes
+    const observer = new MutationObserver(makeToggleVisible);
+    observer.observe(document.body, { childList: true, subtree: true });
+});
+</script>
 """, unsafe_allow_html=True)
 
 # Initialize session state
