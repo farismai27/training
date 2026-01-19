@@ -322,7 +322,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# [Previous CSS remains the same - keeping it for brevity]
+# Enhanced CSS with hamburger menu
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -334,6 +334,54 @@ st.markdown("""
     .block-container { padding: 2rem 2rem; max-width: 56rem; margin: 0 auto; }
     [data-testid="stSidebar"] { background-color: #1a1a1a; border-right: 1px solid #2d2d2d; }
     [data-testid="stSidebar"] > div:first-child { padding: 1.5rem 1rem; }
+
+    /* Hamburger menu button */
+    .hamburger-menu {
+        position: fixed;
+        top: 1rem;
+        left: 1rem;
+        z-index: 9999;
+        background: #10b981;
+        border: none;
+        border-radius: 0.5rem;
+        padding: 0.75rem;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        transition: all 0.3s;
+        box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+    }
+
+    .hamburger-menu:hover {
+        background: #059669;
+        transform: scale(1.05);
+    }
+
+    .hamburger-line {
+        width: 1.5rem;
+        height: 0.15rem;
+        background: white;
+        border-radius: 0.125rem;
+        transition: all 0.3s;
+    }
+
+    /* Make Streamlit's sidebar toggle button visible and styled */
+    [data-testid="collapsedControl"] {
+        background: #10b981 !important;
+        border-radius: 0.5rem !important;
+        padding: 0.75rem !important;
+        top: 1rem !important;
+        left: 1rem !important;
+    }
+
+    [data-testid="collapsedControl"]:hover {
+        background: #059669 !important;
+    }
+
+    [data-testid="collapsedControl"] svg {
+        color: white !important;
+    }
 
     .sidebar-header {
         display: flex;
