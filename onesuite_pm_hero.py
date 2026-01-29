@@ -716,6 +716,13 @@ with st.sidebar:
             st.session_state.github_client = GitHubClient(github_token)
             st.success("✓ GitHub Connected")
 
+        # Show tracked repositories
+        tracked_repos = os.environ.get('GITHUB_REPOS', '')
+        if tracked_repos:
+            st.markdown("**Tracked Repositories:**")
+            for repo in tracked_repos.split(','):
+                st.markdown(f"- `{repo.strip()}`")
+
     st.divider()
 
     # Model Settings
