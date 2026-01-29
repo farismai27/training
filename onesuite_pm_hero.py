@@ -20,6 +20,10 @@ from datetime import datetime
 from anthropic import Anthropic, AnthropicError
 import requests
 from typing import Dict, List, Optional
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Add project root to path
 project_root = Path(__file__).parent
@@ -612,9 +616,21 @@ def init_session_state():
     if 'user_name' not in st.session_state:
         st.session_state.user_name = os.environ.get('USER', 'PM')
     if 'jira_client' not in st.session_state:
-        st.session_state.jira_client = None
+        # Auto-initialize Jira client from environment variables
+        jira_url = os.environ.get('JIRA_URL')
+        jira_email = os.environ.get('JIRA_EMAIL')
+        jira_token = os.environ.get('JIRA_API_TOKEN')
+        if jira_url and jira_email and jira_token:
+            st.session_state.jira_client = JiraClient(jira_url, jira_email, jira_token)
+        else:
+            st.session_state.jira_client = None
     if 'github_client' not in st.session_state:
-        st.session_state.github_client = None
+        # Auto-initialize GitHub client from environment variables
+        github_token = os.environ.get('GITHUB_TOKEN')
+        if github_token:
+            st.session_state.github_client = GitHubClient(github_token)
+        else:
+            st.session_state.github_client = None
 
 init_session_state()
 
@@ -677,6 +693,9 @@ with st.sidebar:
         st.markdown('<div class="status-badge">✓ Anthropic Connected</div>', unsafe_allow_html=True)
 
     # Jira Configuration
+    if st.session_state.jira_client:
+        st.markdown('<div class="status-badge">✓ Jira Connected</div>', unsafe_allow_html=True)
+
     with st.expander("⚙️ Jira Configuration"):
         jira_url = st.text_input("Jira URL", value=os.environ.get('JIRA_URL', ''), help="e.g., https://yourcompany.atlassian.net")
         jira_email = st.text_input("Jira Email", value=os.environ.get('JIRA_EMAIL', ''))
@@ -687,6 +706,9 @@ with st.sidebar:
             st.success("✓ Jira Connected")
 
     # GitHub Configuration
+    if st.session_state.github_client:
+        st.markdown('<div class="status-badge">✓ GitHub Connected</div>', unsafe_allow_html=True)
+
     with st.expander("⚙️ GitHub Configuration"):
         github_token = st.text_input("GitHub Token", type="password", value=os.environ.get('GITHUB_TOKEN', ''))
 
